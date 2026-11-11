@@ -4,17 +4,10 @@
   color-scheme: dark;
 }
 
-html {
-  -webkit-tap-highlight-color: transparent;
-}
-
 body {
-  background:
-    radial-gradient(1200px 500px at 85% -10%, rgba(245, 158, 11, 0.07), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(99, 102, 241, 0.06), transparent 60%),
-    #09090b;
+  background: #09090b;
   color: #f4f4f5;
-  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {
@@ -22,36 +15,34 @@ body {
     @apply rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4;
   }
   .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-zinc-800 px-3.5 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
     @apply bg-amber-400 text-zinc-950 hover:bg-amber-300;
   }
   .btn-ghost {
-    @apply bg-zinc-800/80 text-zinc-100 hover:bg-zinc-700;
+    @apply bg-transparent hover:bg-zinc-800;
   }
   .btn-danger {
     @apply bg-red-500/15 text-red-300 hover:bg-red-500/25;
   }
   .btn-sm {
-    @apply px-2.5 py-1.5 text-xs;
+    @apply px-2.5 py-1 text-xs;
   }
   .input {
-    @apply w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-amber-400 focus:outline-none;
+    @apply w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-400;
   }
   .label {
-    @apply mb-1 block text-xs font-medium text-zinc-400;
+    @apply mb-1 block text-xs font-medium tracking-wide text-zinc-400 uppercase;
   }
   .chip {
-    @apply inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800/60 px-2.5 py-0.5 text-xs text-zinc-300;
+    @apply inline-flex cursor-pointer items-center rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:border-zinc-500;
   }
-  .h-section {
-    @apply mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400;
+  .chip-on {
+    @apply border-amber-400 bg-amber-400/15 text-amber-300;
   }
-  .stat-value {
-    @apply text-2xl font-semibold tracking-tight text-zinc-50;
-  }
-  .stat-label {
-    @apply text-xs text-zinc-400;
-  }
+}
+
+input[type="range"] {
+  accent-color: #fbbf24;
 }

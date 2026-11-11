@@ -1,134 +1,126 @@
-// Utilitaires de dates : toutes les dates sont des chaînes "YYYY-MM-DD" (fuseau Europe/Paris)
-
+// Toutes les dates sont des chaînes "YYYY-MM-DD" calculées en Europe/Paris.
 const TZ = "Europe/Paris";
 
-export const DAY_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-export const DAY_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-export const DAY_LETTER = ["L", "M", "M", "J", "V", "S", "D"];
+export const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+export const DAYS_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+export const DAYS_1 = ["L", "M", "M", "J", "V", "S", "D"];
 
 export function todayStr(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export function nowMinutes(): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = new Intl.DateTimeFormat("fr-FR", {
     timeZone: TZ,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(new Date());
-  const [h, m] = parts.split(":").map(Number);
-  return (h % 24) * 60 + m;
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24;
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return h * 60 + m;
 }
 
-function toDate(s: string): Date {
+function toUTC(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
-
-function toStr(d: Date): string {
+function fromUTC(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function isDateStr(s: unknown): s is string {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-
 export function addDays(s: string, n: number): string {
-  const d = toDate(s);
+  const d = toUTC(s);
   d.setUTCDate(d.getUTCDate() + n);
-  return toStr(d);
+  return fromUTC(d);
 }
-
-/** 1 = lundi … 7 = dimanche */
+/** 0 = lundi ... 6 = dimanche */
 export function dow(s: string): number {
-  const d = toDate(s).getUTCDay();
-  return d === 0 ? 7 : d;
+  return (toUTC(s).getUTCDay() + 6) % 7;
 }
-
-export function startOfWeek(s: string): string {
-  return addDays(s, 1 - dow(s));
+export function weekStart(s: string): string {
+  return addDays(s, -dow(s));
 }
-
+export function diffDays(a: string, b: string): number {
+  return Math.round((toUTC(b).getTime() - toUTC(a).getTime()) / 86400000);
+}
 export function weekDates(s: string): string[] {
-  const start = startOfWeek(s);
+  const start = weekStart(s);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
 }
-
-export function diffDays(a: string, b: string): number {
-  return Math.round((toDate(a).getTime() - toDate(b).getTime()) / 86_400_000);
+/** Indice absolu de la semaine (lundi), stable d'une année à l'autre */
+export function weekIndex(s: string): number {
+  return Math.round((toUTC(weekStart(s)).getTime() / 86400000 + 3) / 7);
+}
+export function weekType(s: string, parityA: number): "A" | "B" {
+  return (((weekIndex(s) % 2) + 2) % 2 === parityA ? "A" : "B") as "A" | "B";
+}
+export function monthOf(s: string): string {
+  return s.slice(0, 7);
 }
 
-export function isoWeek(s: string): number {
-  const d = toDate(s);
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
-  return Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7);
+export function fmtDate(s: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }): string {
+  if (!s) return "";
+  return toUTC(s).toLocaleDateString("fr-FR", { timeZone: "UTC", ...opts });
 }
-
-export function weekParity(s: string, weekAOdd: boolean): "A" | "B" {
-  const odd = isoWeek(s) % 2 === 1;
-  return odd === weekAOdd ? "A" : "B";
-}
-
-export function fmtDate(s: string, opts: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("fr-FR", { timeZone: "UTC", ...opts }).format(toDate(s));
-}
-
 export function fmtLong(s: string): string {
   return fmtDate(s, { weekday: "long", day: "numeric", month: "long" });
 }
-
-export function fmtShort(s: string): string {
-  return fmtDate(s, { day: "numeric", month: "short" });
+export function weekLabel(s: string): string {
+  const a = weekStart(s);
+  const b = addDays(a, 6);
+  return `${fmtDate(a)} – ${fmtDate(b, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-export function fmtRelative(s: string, today: string): string {
-  const d = diffDays(s, today);
+/** "J-3", "Demain", "Aujourd'hui", "En retard (2 j)" */
+export function countdown(date: string, today = todayStr()): string {
+  const d = diffDays(today, date);
   if (d === 0) return "Aujourd'hui";
   if (d === 1) return "Demain";
   if (d === -1) return "Hier";
-  if (d > 1 && d < 7) return fmtDate(s, { weekday: "long" });
-  return fmtShort(s);
+  if (d < 0) return `En retard (${-d} j)`;
+  return `J-${d}`;
 }
 
-/** "08:30" -> 510 */
 export function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
 }
-
 export function fromMin(m: number): string {
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/** 510 → "8h30" */
+export function fmtDuration(min: number): string {
+  const m = Math.round(min);
   const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  const r = m % 60;
+  if (h === 0) return `${r} min`;
+  return `${h}h${String(r).padStart(2, "0")}`;
 }
-
-export function fmtMinutes(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = Math.round(min % 60);
-  if (h === 0) return `${m} min`;
-  return `${h} h ${String(m).padStart(2, "0")}`;
+/** secondes → "5'12" ou "1:05:30" */
+export function fmtTime(sec: number): string {
+  const s = Math.round(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+  return `${m}:${String(r).padStart(2, "0")}`;
 }
-
-export function fmtDuration(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = Math.round(sec % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-/** secondes par km -> "5'30\"" */
 export function fmtPace(secPerKm: number): string {
-  if (!isFinite(secPerKm) || secPerKm <= 0) return "–";
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  if (s === 60) return `${m + 1}'00"`;
-  return `${m}'${String(s).padStart(2, "0")}"`;
+  const s = Math.round(secPerKm);
+  return `${Math.floor(s / 60)}'${String(s % 60).padStart(2, "0")}"/km`;
 }
-
-export function monthStart(s: string): string {
-  return s.slice(0, 8) + "01";
+/** "42:30" ou "1:05:30" ou "42" (minutes) → secondes */
+export function parseTime(txt: string): number {
+  const parts = txt.trim().replace(",", ".").split(":").map(Number);
+  if (parts.some((n) => !Number.isFinite(n))) return 0;
+  if (parts.length === 1) return Math.round(parts[0] * 60);
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] * 3600 + parts[1] * 60 + parts[2];
 }

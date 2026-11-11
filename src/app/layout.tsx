@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import Nav from "@/components/Nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mon Planner",
-  description: "EDT, sport, saxophone, partitions, nutrition, habitudes — tout au même endroit.",
-  appleWebApp: { capable: true, title: "Planner", statusBarStyle: "black-translucent" },
+  title: "Ma Vie – EDT, sport, sax, nutrition",
+  description: "Emploi du temps, sport, saxophone, partitions, nutrition, habitudes et lycée.",
 };
 
 export const viewport: Viewport = {
@@ -17,7 +17,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Nav />
+        <main className="mx-auto max-w-6xl px-4 pt-5 pb-28 md:ml-56 md:max-w-none md:px-8 md:pb-10 lg:pr-10">
+          <div className="mx-auto max-w-6xl">{children}</div>
+        </main>
+      </body>
     </html>
   );
 }

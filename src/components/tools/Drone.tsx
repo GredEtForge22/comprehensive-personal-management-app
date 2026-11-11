@@ -1,98 +1,104 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { INSTRUMENTS, NOTE_NAMES, getAudioContext, midiToFreq } from "./audio";
+import { useEffect, useRef, useState } from "react";
+import { TRANSPOSE, type Instrument, INSTRUMENT_LABEL } from "@/lib/settings";
+import { useSettings } from "@/lib/store";
+import { NOTE_NAMES, freqOfMidi, getCtx } from "./audio";
 
 export default function Drone() {
-  const [instrument, setInstrument] = useState("alto");
-  const [pc, setPc] = useState(0); // classe de hauteur écrite
+  const { settings } = useSettings();
+  const [instr, setInstr] = useState<Instrument | null>(null);
+  const instrument = instr ?? settings.saxInstrument;
+  const [note, setNote] = useState(0); // Do écrit
   const [octave, setOctave] = useState(4);
-  const [playing, setPlaying] = useState(false);
-  const nodes = useRef<{ osc: OscillatorNode[]; gain: GainNode } | null>(null);
+  const [fifth, setFifth] = useState(false);
+  const [vol, setVol] = useState(0.25);
+  const [on, setOn] = useState(false);
+  const gainRef = useRef<GainNode | null>(null);
 
-  const transpose = INSTRUMENTS.find((i) => i.id === instrument)?.transpose ?? 0;
-  const writtenMidi = (octave + 1) * 12 + pc;
-  const freq = midiToFreq(writtenMidi - transpose);
-
-  const stop = useCallback(() => {
-    const n = nodes.current;
-    if (!n) return;
-    const ctx = getAudioContext();
-    n.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.05);
-    n.osc.forEach((o) => o.stop(ctx.currentTime + 0.3));
-    nodes.current = null;
-    setPlaying(false);
-  }, []);
-
-  const play = useCallback(
-    (f: number) => {
-      const ctx = getAudioContext();
-      if (nodes.current) {
-        nodes.current.osc.forEach((o) => o.frequency.setTargetAtTime(f, ctx.currentTime, 0.02));
-        return;
-      }
-      const gain = ctx.createGain();
-      gain.gain.value = 0.0001;
-      gain.gain.setTargetAtTime(0.25, ctx.currentTime, 0.05);
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 1800;
-      filter.connect(gain).connect(ctx.destination);
-      const osc = [ctx.createOscillator(), ctx.createOscillator()];
-      osc[0].type = "triangle";
-      osc[1].type = "sine";
-      osc[1].detune.value = 3;
-      osc.forEach((o) => {
-        o.frequency.value = f;
-        o.connect(filter);
-        o.start();
-      });
-      nodes.current = { osc, gain };
-      setPlaying(true);
-    },
-    [],
-  );
+  const writtenMidi = (octave + 1) * 12 + note;
+  const concert = writtenMidi - TRANSPOSE[instrument];
 
   useEffect(() => {
-    if (playing) play(freq);
-  }, [freq, playing, play]);
+    if (gainRef.current) gainRef.current.gain.value = vol;
+  }, [vol]);
 
-  useEffect(() => () => stop(), [stop]);
+  useEffect(() => {
+    if (!on) return;
+    const c = getCtx();
+    const gain = c.createGain();
+    gain.gain.value = 0;
+    gain.gain.linearRampToValueAtTime(vol, c.currentTime + 0.3);
+    gain.connect(c.destination);
+    gainRef.current = gain;
+    const oscs: OscillatorNode[] = [];
+    const add = (midi: number, type: OscillatorType, level: number) => {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.value = freqOfMidi(midi);
+      g.gain.value = level;
+      o.connect(g).connect(gain);
+      o.start();
+      oscs.push(o);
+    };
+    add(concert, "triangle", 0.7);
+    add(concert, "sine", 0.4);
+    add(concert + 12, "sine", 0.15);
+    if (fifth) add(concert + 7, "triangle", 0.4);
+    return () => {
+      const t = c.currentTime;
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      oscs.forEach((o) => o.stop(t + 0.2));
+      gainRef.current = null;
+    };
+    // vol est géré par l'autre effet
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, concert, fifth]);
 
   return (
-    <div className="card">
-      <div className="h-section">🔊 Bourdon / note de référence</div>
-      <div className="mb-3">
-        <label className="label">Instrument</label>
-        <select className="input" value={instrument} onChange={(e) => setInstrument(e.target.value)}>
-          {INSTRUMENTS.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.label}
-            </option>
-          ))}
-        </select>
+    <div className="card space-y-4">
+      <h3 className="font-semibold">Bourdon (intonation)</h3>
+      <p className="text-xs text-zinc-500">Choisis la note comme sur ta partition : le son joué est transposé pour ton sax.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="space-y-1">
+          <span className="label">Instrument</span>
+          <select className="input" value={instrument} onChange={(e) => setInstr(e.target.value as Instrument)}>
+            {(Object.keys(INSTRUMENT_LABEL) as Instrument[]).map((k) => (
+              <option key={k} value={k}>
+                {INSTRUMENT_LABEL[k]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="label">Octave écrite</span>
+          <select className="input" value={octave} onChange={(e) => setOctave(Number(e.target.value))}>
+            {[3, 4, 5, 6].map((o) => (
+              <option key={o}>{o}</option>
+            ))}
+          </select>
+        </label>
       </div>
-      <label className="label">Note écrite</label>
-      <div className="mb-3 grid grid-cols-6 gap-1.5">
+      <div className="grid grid-cols-6 gap-1.5">
         {NOTE_NAMES.map((n, i) => (
-          <button key={n} className={`btn btn-sm ${pc === i ? "btn-primary" : "btn-ghost"}`} onClick={() => setPc(i)}>
+          <button key={n} className={`chip justify-center !px-0 ${note === i ? "chip-on" : ""}`} onClick={() => setNote(i)}>
             {n}
           </button>
         ))}
       </div>
-      <div className="mb-3 flex items-center gap-2">
-        <span className="label !mb-0">Octave</span>
-        {[3, 4, 5, 6].map((o) => (
-          <button key={o} className={`btn btn-sm ${octave === o ? "btn-primary" : "btn-ghost"}`} onClick={() => setOctave(o)}>
-            {o}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-zinc-400">{Math.round(freq * 10) / 10} Hz (son réel)</span>
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-zinc-400">Volume</span>
+        <input type="range" min={0.02} max={0.6} step={0.01} value={vol} onChange={(e) => setVol(Number(e.target.value))} className="flex-1" />
+        <button className={`chip ${fifth ? "chip-on" : ""}`} onClick={() => setFifth(!fifth)}>
+          + quinte
+        </button>
       </div>
-      <button className="btn btn-primary w-full" onClick={() => (playing ? stop() : play(freq))}>
-        {playing ? "■ Arrêter" : "▶ Jouer la note"}
+      <button className={`btn w-full ${on ? "btn-danger" : "btn-primary"}`} onClick={() => setOn(!on)}>
+        {on ? "⏹ Stop" : `▶ Jouer ${NOTE_NAMES[note]}${octave}`}
       </button>
-      <p className="mt-2 text-xs text-zinc-500">Idéal pour travailler l&apos;intonation et les sons tenus.</p>
     </div>
   );
 }

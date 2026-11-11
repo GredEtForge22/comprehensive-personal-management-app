@@ -1,24 +1,49 @@
 "use client";
 
-import { useActionState } from "react";
-import { login } from "@/app/actions/auth";
+import { useState } from "react";
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState(login, undefined);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      window.location.href = "/";
+    } else {
+      setError("Mot de passe incorrect");
+      setBusy(false);
+    }
+  }
+
   return (
-    <main className="grid min-h-screen place-items-center px-4">
-      <form action={action} className="card w-full max-w-sm space-y-4 p-6">
+    <div className="mx-auto mt-24 max-w-sm">
+      <form onSubmit={submit} className="card space-y-4 !p-6">
         <div className="text-center">
-          <div className="text-4xl">🎷</div>
-          <h1 className="mt-2 text-xl font-semibold">Mon Planner</h1>
-          <p className="text-sm text-zinc-400">Entre ton mot de passe pour continuer</p>
+          <div className="text-5xl">🎷</div>
+          <h1 className="mt-2 text-xl font-bold">Connexion</h1>
         </div>
-        <input name="password" type="password" autoFocus required placeholder="Mot de passe" className="input" />
-        {state?.error && <p className="text-sm text-red-400">{state.error}</p>}
-        <button disabled={pending} className="btn btn-primary w-full">
-          {pending ? "…" : "Entrer"}
+        <input
+          className="input"
+          type="password"
+          autoFocus
+          placeholder="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <button className="btn btn-primary w-full" disabled={busy || !password}>
+          Entrer
         </button>
       </form>
-    </main>
+    </div>
   );
 }

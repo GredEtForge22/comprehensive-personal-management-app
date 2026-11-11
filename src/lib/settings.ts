@@ -1,40 +1,55 @@
-import { db } from "@/db";
-import { settings } from "@/db/schema";
+export type Instrument = "alto" | "tenor" | "soprano" | "baryton";
 
-export const DEFAULT_SETTINGS = {
-  kcalGoal: 2500,
-  proteinGoal: 120,
-  carbsGoal: 300,
-  fatGoal: 80,
-  musicWeeklyGoalMin: 420,
-  runWeeklyGoalKm: 15,
-  muscuWeeklyGoal: 3,
-  weekAOdd: true,
+export type Settings = {
+  weight: number;
+  height: number;
+  age: number;
+  sex: "m" | "f";
+  activity: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  saxWeeklyMin: number;
+  saxInstrument: Instrument;
+  runWeeklyKm: number;
+  workoutsPerWeek: number;
+  sleepGoal: number;
+  weekAParity: number;
 };
 
-export type Settings = typeof DEFAULT_SETTINGS;
+export const DEFAULT_SETTINGS: Settings = {
+  weight: 61,
+  height: 186,
+  age: 17,
+  sex: "m",
+  activity: 1.7,
+  kcal: 3000,
+  protein: 125,
+  carbs: 430,
+  fat: 85,
+  fiber: 30,
+  sugar: 60,
+  saxWeeklyMin: 510, // 8h30
+  saxInstrument: "alto",
+  runWeeklyKm: 15,
+  workoutsPerWeek: 4,
+  sleepGoal: 8,
+  weekAParity: 0,
+};
 
-export async function getSettings(): Promise<Settings> {
-  const rows = await db.select().from(settings);
-  const out: Record<string, unknown> = { ...DEFAULT_SETTINGS };
-  for (const r of rows) {
-    if (!(r.key in DEFAULT_SETTINGS)) continue;
-    try {
-      out[r.key] = JSON.parse(r.value);
-    } catch {
-      /* ignore */
-    }
-  }
-  return out as Settings;
-}
-
-export async function saveSettings(partial: Partial<Settings>) {
-  for (const [key, value] of Object.entries(partial)) {
-    if (!(key in DEFAULT_SETTINGS) || value === undefined) continue;
-    const v = JSON.stringify(value);
-    await db
-      .insert(settings)
-      .values({ key, value: v })
-      .onConflictDoUpdate({ target: settings.key, set: { value: v } });
-  }
-}
+/** Demi-tons à ajouter à la note réelle (concert) pour obtenir la note écrite. */
+export const TRANSPOSE: Record<Instrument, number> = {
+  soprano: 2, // Sib : écrit un ton au-dessus
+  alto: 9, // Mib : écrit une sixte majeure au-dessus
+  tenor: 14, // Sib : écrit une neuvième majeure au-dessus
+  baryton: 21, // Mib : écrit une sixte + octave au-dessus
+};
+export const INSTRUMENT_LABEL: Record<Instrument, string> = {
+  soprano: "Soprano (Sib)",
+  alto: "Alto (Mib)",
+  tenor: "Ténor (Sib)",
+  baryton: "Baryton (Mib)",
+};
